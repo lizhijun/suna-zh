@@ -212,6 +212,7 @@ export const getProject = async (projectId: string): Promise<Project> => {
       name: data.name || '',
       description: data.description || '',
       account_id: data.account_id,
+      is_public: data.is_public || false,
       created_at: data.created_at,
       sandbox: data.sandbox || { id: "", pass: "", vnc_preview: "", sandbox_url: "" }
     };
@@ -1049,6 +1050,53 @@ export const updateThread = async (threadId: string, data: Partial<Thread>): Pro
 
 export const toggleThreadPublicStatus = async (threadId: string, isPublic: boolean): Promise<Thread> => {
   return updateThread(threadId, { is_public: isPublic });
+};
+
+export const deleteThread = async (threadId: string): Promise<void> => {
+  try {
+    const supabase = createClient();
+    
+    // First delete all agent runs associated with this thread
+    console.log(`Deleting all agent runs for thread ${threadId}`);
+    const { error: agentRunsError } = await supabase
+      .from('agent_runs')
+      .delete()
+      .eq('thread_id', threadId);
+    
+    if (agentRunsError) {
+      console.error('Error deleting agent runs:', agentRunsError);
+      throw new Error(`Error deleting agent runs: ${agentRunsError.message}`);
+    }
+    
+    // Then delete all messages associated with the thread
+    console.log(`Deleting all messages for thread ${threadId}`);
+    const { error: messagesError } = await supabase
+      .from('messages')
+      .delete()
+      .eq('thread_id', threadId);
+    
+    if (messagesError) {
+      console.error('Error deleting messages:', messagesError);
+      throw new Error(`Error deleting messages: ${messagesError.message}`);
+    }
+    
+    // Finally, delete the thread itself
+    console.log(`Deleting thread ${threadId}`);
+    const { error: threadError } = await supabase
+      .from('threads')
+      .delete()
+      .eq('thread_id', threadId);
+    
+    if (threadError) {
+      console.error('Error deleting thread:', threadError);
+      throw new Error(`Error deleting thread: ${threadError.message}`);
+    }
+    
+    console.log(`Thread ${threadId} successfully deleted with all related items`);
+  } catch (error) {
+    console.error('Error deleting thread and related items:', error);
+    throw error;
+  }
 };
 
 // Function to get public projects
